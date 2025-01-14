@@ -28,10 +28,11 @@ for file, sheet in zip(comparison_input_files, comparison_sheet_names):
 
 # 选择特征和标签
 # selected_features = ['性别', '饮酒', '冠心病', '肝/肾功能异常', '体温', '钾离子(K+)', '钙离子(Ca2+)']
-# selected_features = df.columns.difference(id_cols + ['不良反应'])
+selected_features = df.columns.difference(id_cols + ['不良反应'])
 # selected_features = ['用药总数', '体温', '呼吸R', '心率HR', '(AST/ALT)', '肌酐(Crea)', '血红蛋白(Hb)']
-# selected_features = ['性别', '饮酒', '冠心病', '肝/肾功能异常', '体温', '氯离子(Cl-)', '钙离子(Ca2+)']
-selected_features = ['用药总数', '心率HR', '尿酸(UA)', '(AST/ALT)', '总胆红素(TBIL)', '肌酐(Crea)', '碱性磷酸酶(ALP)']
+# selected_features = ['吸烟', '红细胞比容(Hct)', '红细胞计数(RBC#)', '血红蛋白(Hb)', '气管插管', '呼吸R', '用药总数']
+# selected_features = ['用药总数', '心率HR', '尿酸(UA)', '(AST/ALT)', '总胆红素(TBIL)', '肌酐(Crea)', '碱性磷酸酶(ALP)']
+# selected_features = ['用药总数', '体温', '呼吸R', '(AST/ALT)', '肌酐(Crea)', '红细胞比容(Hct)', '血红蛋白(Hb)']
 print(f"特征: {selected_features}")
 X = df[selected_features]
 y = df['不良反应']
@@ -56,7 +57,7 @@ models = {
     "Logistic Regression": LogisticRegression(),
     "Random Forest": RandomForestClassifier(),
     "Gradient Boosting": GradientBoostingClassifier(),
-    "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss'),
+    "XGBoost": XGBClassifier(eval_metric='logloss'),
     "CatBoost": CatBoostClassifier(silent=True),
     "LightGBM": LGBMClassifier(verbose=-1),
 }
@@ -124,7 +125,7 @@ for name, model in models.items():
 plt.show()
 
 # 计算 SHAP 值
-explainer = shap.Explainer(models['CatBoost'])
+explainer = shap.Explainer(models['Gradient Boosting'])
 shap_values = explainer.shap_values(X_test)
 
 # 绘制 SHAP 值图
