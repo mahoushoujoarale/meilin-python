@@ -122,7 +122,7 @@ def main():
         return
     
     # 使用特征筛选方法（可选 "rfe", "l1", "mi"）
-    selected_features = feature_selection(merged_df, target_column, method="rfe", n_features=7)
+    selected_features = feature_selection(merged_df, target_column, method="rfe", n_features=1)
     
     # 评估模型性能
     evaluate_model(merged_df, target_column, selected_features)

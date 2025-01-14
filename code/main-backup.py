@@ -33,7 +33,8 @@ for file, sheet in zip(comparison_input_files, comparison_sheet_names):
 # selected_features = ['吸烟', '红细胞比容(Hct)', '红细胞计数(RBC#)', '血红蛋白(Hb)', '气管插管', '呼吸R', '用药总数']
 # selected_features = ['用药总数', '心率HR', '尿酸(UA)', '(AST/ALT)', '总胆红素(TBIL)', '肌酐(Crea)', '碱性磷酸酶(ALP)']
 # 没用的 '红细胞比容(Hct)', '血红蛋白(Hb)', '肌酐(Crea)', '体温'
-selected_features = ['用药总数', '呼吸R', '心率HR', '(AST/ALT)', '冠心病', '气管插管']
+# selected_features = ['用药总数', '呼吸R', '心率HR', '(AST/ALT)', '冠心病', '气管插管']
+selected_features = ['抗菌药物数目']
 print(f"特征: {selected_features}")
 X = df[selected_features]
 y = df['不良反应']
