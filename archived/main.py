@@ -46,7 +46,7 @@ models = {
     "Logistic Regression": LogisticRegression(),
     "Random Forest": RandomForestClassifier(),
     "Gradient Boosting": GradientBoostingClassifier(),
-    "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss'),
+    "XGBoost": XGBClassifier(eval_metric='logloss'),
     "CatBoost": CatBoostClassifier(silent=True),
     "LightGBM": LGBMClassifier(verbose=-1),
 }

@@ -1,12 +1,13 @@
 import pandas as pd
 from sklearn.feature_selection import RFE, SelectFromModel, mutual_info_classif
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 import os
 import logging
 from constants import baseline_input_files, baseline_sheet_names, id_cols
+from catboost import CatBoostClassifier  # 导入 CatBoostClassifier
 
 # 配置日志记录
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -59,7 +60,7 @@ def feature_selection(df, target_column, method="rfe", n_features=7):
     pos_weight = len(y[y == 0]) / len(y[y == 1])  # 计算类别权重
     
     if method == "rfe":
-        model = GradientBoostingClassifier(n_estimators=100, random_state=42, subsample=0.8)
+        model = CatBoostClassifier(iterations=100, random_state=42, verbose=False)  # 使用 CatBoostClassifier
         rfe = RFE(estimator=model, n_features_to_select=n_features)
         rfe.fit(X, y)
         selected_features = X.columns[rfe.support_].tolist()
@@ -98,7 +99,7 @@ def evaluate_model(df, target_column, selected_features):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
     
     # 训练模型
-    model = GradientBoostingClassifier(n_estimators=100, random_state=42, subsample=0.8)
+    model = CatBoostClassifier(iterations=100, random_state=42, verbose=False)  # 使用 CatBoostClassifier
     model.fit(X_train, y_train)
     
     # 评估模型
