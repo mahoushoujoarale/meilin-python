@@ -113,4 +113,15 @@ def print_bootstrap_results(bootstrap_metrics):
         mean_value = np.mean(values)
         ci_low = np.percentile(values, 2.5)
         ci_high = np.percentile(values, 97.5)
-        print(f"{metric}: {mean_value:.4f} [{ci_low:.4f}-{ci_high:.4f}]") 
+        print(f"{metric}: {mean_value:.4f} [{ci_low:.4f}-{ci_high:.4f}]")
+
+def save_external_validation_results(bootstrap_metrics, plot_dir):
+    """保存外部验证结果到Excel文件"""
+    external_validation_results = {
+        'Metric': list(bootstrap_metrics.keys()),
+        'Mean': [np.mean(values) for values in bootstrap_metrics.values()],
+        '95% CI Lower': [np.percentile(values, 2.5) for values in bootstrap_metrics.values()],
+        '95% CI Upper': [np.percentile(values, 97.5) for values in bootstrap_metrics.values()]
+    }
+    external_validation_df = pd.DataFrame(external_validation_results)
+    external_validation_df.to_excel(os.path.join(plot_dir, 'external_validation_results.xlsx'), index=False) 

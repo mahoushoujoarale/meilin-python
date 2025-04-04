@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 from data_preprocessing import load_data, prepare_features, get_sampling_strategies
 from models import get_models
 from model_training import evaluate_all_models, find_best_model
@@ -11,7 +12,8 @@ from visualization import (
 )
 from utils import (
     setup_device, generate_baseline_table, save_results_to_excel,
-    perform_bootstrap_validation, print_bootstrap_results
+    perform_bootstrap_validation, print_bootstrap_results,
+    save_external_validation_results
 )
 from constants import input_files, sheet_names, id_cols
 
@@ -98,7 +100,10 @@ def main():
     # 绘制Bootstrap分布图
     plot_bootstrap_distributions(bootstrap_metrics, plot_dir)
     
-    print(f"\n所有图片已保存到文件夹: {plot_dir}")
+    # 保存外部验证结果
+    save_external_validation_results(bootstrap_metrics, plot_dir)
+    
+    print(f"\n所有图片和外部验证结果已保存到文件夹: {plot_dir}")
 
 if __name__ == "__main__":
     main()
