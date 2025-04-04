@@ -1,3 +1,14 @@
-### 文件结构
+### 第一步
+将数据放到 input 文件夹下，命名为 baseline.xlsx
 
-### 处理流程
+### 第二步
+跑 code 目录下的 imputation.py 文件，生成插补后的数据
+
+### 第三步
+跑 code 目录下的 normalization.py 文件，生成归一化后的数据
+
+### 第四步
+跑 code 目录下的 features-select.py 文件，生成特征选择后的数据
+
+### 第五步
+跑 code 目录下的 main.py 文件，跑生成模型评估结果

@@ -1,134 +1,99 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split, LeaveOneOut, cross_val_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from xgboost import XGBClassifier
-from catboost import CatBoostClassifier
-from lightgbm import LGBMClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve, classification_report, confusion_matrix
 import matplotlib.pyplot as plt
-from scipy.stats import sem
-import shap
-from imblearn.over_sampling import SMOTE  # 导入SMOTE
-from constants import comparison_input_files, comparison_sheet_names, id_cols
+from data_preprocessing import load_data, prepare_features, get_sampling_strategies
+from models import get_models
+from model_training import evaluate_all_models, find_best_model
+from visualization import (
+    create_plot_directory, plot_roc_curves, plot_pr_curves,
+    plot_shap_values, plot_calibration_curve, plot_decision_curve,
+    plot_bootstrap_distributions
+)
+from utils import (
+    setup_device, generate_baseline_table, save_results_to_excel,
+    perform_bootstrap_validation, print_bootstrap_results
+)
+from constants import input_files, sheet_names, id_cols
 
-# 设置中文字体
-plt.rcParams['font.sans-serif'] = ['Hiragino Sans GB']  # 使用 Hiragino Sans GB
-plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+# 设置中文字体和图片样式
+plt.rcParams['font.sans-serif'] = ['Hiragino Sans GB']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['figure.figsize'] = [10, 6]
+plt.rcParams['axes.grid'] = True
+plt.rcParams['grid.alpha'] = 0.3
+plt.rcParams['axes.labelsize'] = 12
+plt.rcParams['axes.titlesize'] = 14
+plt.rcParams['xtick.labelsize'] = 10
+plt.rcParams['ytick.labelsize'] = 10
 
-# 读取数据集
-df = pd.DataFrame()
-for file, sheet in zip(comparison_input_files, comparison_sheet_names):
-    input_file = "temp/normalized-" + file
-    current_df = pd.read_excel(input_file, sheet_name=sheet)
-    print(f"文件 {input_file} 读取成功")
-    df = pd.concat([df, current_df], ignore_index=True)
+# 设置随机种子
+np.random.seed(42)
 
-# 选择特征和标签
-# selected_features = ['用药总数', '心率HR', '尿酸(UA)', '(AST/ALT)', '总胆红素(TBIL)', '肌酐(Crea)', '碱性磷酸酶(ALP)']
-# selected_features = ['用药总数', '体温', '呼吸R', '(AST/ALT)', '肌酐(Crea)', '红细胞比容(Hct)', '血红蛋白(Hb)']
-selected_features = ['体温', '呼吸R', '心率HR', '肌酐(Crea)', '碱性磷酸酶(ALP)', '氯离子(Cl-)', '钙离子(Ca2+)']
-print(f"特征: {selected_features}")
-X = df[selected_features]
-y = df['不良反应']
-
-# 对分类变量进行编码
-X = pd.get_dummies(X)
-
-# 划分数据集为训练集和测试集
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
-# 特征缩放
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
-
-# 应用SMOTE采样
-smote = SMOTE(random_state=42)
-X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
-
-# 定义模型
-models = {
-    "Logistic Regression": LogisticRegression(),
-    "Random Forest": RandomForestClassifier(),
-    "Gradient Boosting": GradientBoostingClassifier(),
-    "XGBoost": XGBClassifier(eval_metric='logloss'),
-    "CatBoost": CatBoostClassifier(silent=True),
-    "LightGBM": LGBMClassifier(verbose=-1),
-}
-
-def calculate_auc_ci(y_true, y_scores, alpha=0.95):
-    auc = roc_auc_score(y_true, y_scores)
-    n1 = sum(y_true)
-    n2 = len(y_true) - n1
-    q1 = auc / (2 - auc)
-    q2 = 2 * auc**2 / (1 + auc)
-    auc_var = (auc * (1 - auc) + (n1 - 1) * (q1 - auc**2) + (n2 - 1) * (q2 - auc**2)) / (n1 * n2)
-    auc_std = np.sqrt(auc_var)
-    ci = auc + np.array([-1, 1]) * sem(y_scores) * 1.96
-    return auc, ci[0], ci[1]
-
-def evaluate_model(name, model, X_train, y_train, X_test, y_test):
-    # 训练模型
-    model.fit(X_train, y_train)
+def main():
+    # 设置设备
+    device = setup_device()
     
-    # 模型预测
-    y_pred = model.predict(X_test)
-    y_pred_proba = model.predict_proba(X_test)[:, 1]  # 获取预测概率
+    # 读取数据集
+    print("\n读取数据集...")
+    df = pd.read_excel("temp/imputed-baseline.xlsx")
     
-    # 评估模型
-    accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
-    auc, auc_low, auc_up = calculate_auc_ci(y_test, y_pred_proba)
+    # 从文件读取特征列表
+    print("\n读取特征列表...")
+    with open("temp/selected_features.txt", "r") as f:
+        selected_features = [line.strip() for line in f if line.strip()]
+    print(f"特征: {selected_features}")
     
-    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
-    specificity = tn / (tn + fp)
+    # 生成基线特征表格
+    print("\n生成基线特征表格...")
+    baseline_df = generate_baseline_table(df, selected_features)
     
-    print(f"{name} Accuracy (ACC): {accuracy}")
-    print(f"{name} Precision (rf_precision): {precision}")
-    print(f"{name} Recall (SEN/rf_recall): {recall}")
-    print(f"{name} F1-score (rf_f1): {f1}")
-    print(f"{name} AUC: {auc}")
-    print(f"{name} AUC low: {auc_low}")
-    print(f"{name} AUC up: {auc_up}")
-    print(f"{name} Specificity (SPE): {specificity}")
-    print(classification_report(y_test, y_pred))
-    print("Confusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
-    print("-" * 50)
+    # 创建保存图片的文件夹
+    plot_dir = create_plot_directory()
+    print(f"\n所有图片将保存到文件夹: {plot_dir}")
     
-    # 使用留一法进行交叉验证
-    loo = LeaveOneOut()
-    scores = cross_val_score(model, X_train, y_train, cv=loo, scoring='accuracy')
-    print(f"{name} Leave-One-Out Cross-validated scores: {scores.mean()}")
-    print("-" * 50)
+    # 加载和准备数据
+    df = load_data(input_files, sheet_names)
+    X_train, X_test, y_train, y_test, scaler = prepare_features(df, selected_features)
     
-    # 绘制 ROC 曲线
-    fpr, tpr, thresholds = roc_curve(y_test, y_pred_proba)
-    plt.plot(fpr, tpr, label=f'{name} (AUC = {auc:.2f})')
-    plt.plot([0, 1], [0, 1], 'k--')  # 绘制对角线
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve')
-    plt.legend(loc='best')
+    # 获取采样策略和模型
+    sampling_strategies = get_sampling_strategies()
+    models = get_models(X_train.shape[1], y_train)
+    
+    # 评估所有模型
+    results_data, model_scores = evaluate_all_models(
+        models, X_train, y_train, X_test, y_test, sampling_strategies, device
+    )
+    
+    # 保存结果到Excel
+    save_results_to_excel(results_data)
+    
+    # 找出并评估最佳模型
+    best_model, y_pred_proba, model_name = find_best_model(
+        model_scores, models, sampling_strategies, X_train, y_train, X_test, y_test, device
+    )
+    
+    # 绘制SHAP值图（仅适用于非神经网络模型）
+    if "Neural Network" not in model_name:
+        plot_shap_values(best_model, X_test, selected_features, plot_dir)
+    
+    # 绘制校准曲线和决策曲线
+    plot_calibration_curve(y_test, y_pred_proba, plot_dir)
+    plot_decision_curve(y_test, y_pred_proba, plot_dir)
+    
+    # 执行Bootstrap验证
+    bootstrap_metrics = perform_bootstrap_validation(
+        best_model, X_test, y_test,
+        is_neural_net="Neural Network" in model_name,
+        device=device
+    )
+    
+    # 打印Bootstrap结果
+    print_bootstrap_results(bootstrap_metrics)
+    
+    # 绘制Bootstrap分布图
+    plot_bootstrap_distributions(bootstrap_metrics, plot_dir)
+    
+    print(f"\n所有图片已保存到文件夹: {plot_dir}")
 
-# 训练和评估所有模型
-plt.figure(figsize=(10, 8))
-for name, model in models.items():
-    evaluate_model(name, model, X_train_res, y_train_res, X_test, y_test)
-plt.show()
-
-# 计算 SHAP 值
-explainer = shap.Explainer(models['CatBoost'])
-# explainer = shap.Explainer(models['Random Forest'])
-shap_values = explainer.shap_values(X_test)
-
-# 绘制 SHAP 值图
-shap.summary_plot(shap_values, X_test, feature_names=selected_features)
-
-# 绘制特征重要性图
-shap.summary_plot(shap_values, X_test, plot_type="bar", feature_names=selected_features)
+if __name__ == "__main__":
+    main()

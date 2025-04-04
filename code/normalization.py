@@ -24,6 +24,13 @@ def boxcox_normalize(data):
         normalized_data[:, i], _ = boxcox(data_shifted[:, i])
     return normalized_data
 
+def l1_normalize(data):
+    """
+    使用 L1 归一化方法对数据进行归一化
+    """
+    l1_norm = np.sum(np.abs(data), axis=0)  # 计算每一列的L1范数
+    return data / l1_norm  # 将每一列的元素除以该列的L1范数
+
 def normalize_data(file_name, sheet_name, normalization_method='robust'):
     """
     对数据进行归一化和二分类调整
@@ -31,7 +38,7 @@ def normalize_data(file_name, sheet_name, normalization_method='robust'):
     参数:
     file_name (str): 插补后的Excel文件名
     sheet_name (str): 工作表名
-    normalization_method (str): 归一化方法，可选 'robust', 'minmax', 'tanh', 'boxcox'
+    normalization_method (str): 归一化方法，可选 'robust', 'minmax', 'tanh', 'boxcox', 'l1'
     """
     input_file = "temp/imputed-" + file_name
     output_file = "temp/normalized-" + file_name
@@ -49,14 +56,14 @@ def normalize_data(file_name, sheet_name, normalization_method='robust'):
     df = pd.read_excel(file_path, sheet_name=sheet_name)
 
     # 对二分类列调整为0和1
-    if binary_cols:
-        for col in binary_cols:
-            if col in df.columns:
-                # 将二分类列的值映射为0和1
-                df[col] = df[col].astype(int).replace({1: 1, 2: 0})
-                print(f"二分类列 {col} 已调整为0和1")
-            else:
-                print(f"列 {col} 不存在，跳过")
+    # if binary_cols:
+    #     for col in binary_cols:
+    #         if col in df.columns:
+    #             # 将二分类列的值映射为0和1
+    #             df[col] = df[col].astype(int).replace({1: 1, 2: 0})
+    #             print(f"二分类列 {col} 已调整为0和1")
+    #         else:
+    #             print(f"列 {col} 不存在，跳过")
 
     # 对连续型列进行归一化
     numeric_cols = df.select_dtypes(include=['number']).columns.difference(id_cols).difference(binary_cols)
@@ -75,6 +82,9 @@ def normalize_data(file_name, sheet_name, normalization_method='robust'):
         elif normalization_method == 'boxcox':
             df[numeric_cols] = boxcox_normalize(df[numeric_cols].values)
             print("连续型列已使用 Box-Cox 归一化")
+        elif normalization_method == 'l1':
+            df[numeric_cols] = l1_normalize(df[numeric_cols].values)
+            print("连续型列已使用 L1 归一化")
         else:
             raise ValueError(f"不支持的归一化方法: {normalization_method}")
     else:
