@@ -101,9 +101,9 @@ def main():
     plot_bootstrap_distributions(bootstrap_metrics, plot_dir)
     
     # 保存外部验证结果
-    save_external_validation_results(bootstrap_metrics, plot_dir)
+    save_external_validation_results(bootstrap_metrics)
     
-    print(f"\n所有图片和外部验证结果已保存到文件夹: {plot_dir}")
+    print(f"\n所有图片已保存到文件夹: {plot_dir}")
 
 if __name__ == "__main__":
     main()

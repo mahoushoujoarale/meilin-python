@@ -115,7 +115,7 @@ def print_bootstrap_results(bootstrap_metrics):
         ci_high = np.percentile(values, 97.5)
         print(f"{metric}: {mean_value:.4f} [{ci_low:.4f}-{ci_high:.4f}]")
 
-def save_external_validation_results(bootstrap_metrics, plot_dir):
+def save_external_validation_results(bootstrap_metrics):
     """保存外部验证结果到Excel文件"""
     external_validation_results = {
         'Metric': list(bootstrap_metrics.keys()),
@@ -124,4 +124,10 @@ def save_external_validation_results(bootstrap_metrics, plot_dir):
         '95% CI Upper': [np.percentile(values, 97.5) for values in bootstrap_metrics.values()]
     }
     external_validation_df = pd.DataFrame(external_validation_results)
-    external_validation_df.to_excel(os.path.join(plot_dir, 'external_validation_results.xlsx'), index=False) 
+    
+    # 使用ensure_results_dir确保results目录存在
+    results_dir = ensure_results_dir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    excel_file = os.path.join(results_dir, f'external_validation_results_{timestamp}.xlsx')
+    external_validation_df.to_excel(excel_file, index=False)
+    print(f"\n外部验证结果已保存到: {excel_file}") 
