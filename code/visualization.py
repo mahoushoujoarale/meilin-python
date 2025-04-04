@@ -10,7 +10,9 @@ from scipy import stats
 def create_plot_directory():
     """创建保存图片的文件夹"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    plot_dir = f"plots_{timestamp}"
+    results_dir = "results"
+    os.makedirs(results_dir, exist_ok=True)
+    plot_dir = os.path.join(results_dir, f"plots_{timestamp}")
     os.makedirs(plot_dir, exist_ok=True)
     return plot_dir
 
