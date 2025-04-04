@@ -6,6 +6,7 @@ from datetime import datetime
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from sklearn.calibration import calibration_curve
 from scipy import stats
+import pandas as pd
 
 def create_plot_directory():
     """创建保存图片的文件夹"""
@@ -26,9 +27,11 @@ def plot_roc_curves(model_scores, strategy_name, plot_dir):
     plt.figure(figsize=(12, 8))
     plt.title(f'ROC Curves for {strategy_name} Sampling Strategy')
     
-    for name, scores in model_scores.items():
-        fpr, tpr = scores['roc_data']
-        plt.plot(fpr, tpr, label=f'{name} (AUC = {scores["auc"]:.2f})')
+    for name, scores in model_scores[strategy_name].items():
+        if 'roc_data' in scores:
+            fpr, tpr = scores['roc_data']
+            auc = scores['auc']
+            plt.plot(fpr, tpr, label=f'{name} (AUC = {auc:.2f})')
     
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlabel('False Positive Rate')
@@ -42,9 +45,11 @@ def plot_pr_curves(model_scores, strategy_name, plot_dir):
     plt.figure(figsize=(12, 8))
     plt.title(f'Precision-Recall Curves for {strategy_name} Sampling Strategy')
     
-    for name, scores in model_scores.items():
-        precision, recall = scores['pr_data']
-        plt.plot(recall, precision, label=f'{name} (AP = {scores["average_precision"]:.2f})')
+    for name, scores in model_scores[strategy_name].items():
+        if 'pr_data' in scores:
+            precision, recall = scores['pr_data']
+            ap = scores['average_precision']
+            plt.plot(recall, precision, label=f'{name} (AP = {ap:.2f})')
     
     plt.xlabel('Recall')
     plt.ylabel('Precision')
@@ -57,8 +62,16 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
     explainer = shap.Explainer(model)
     shap_values = explainer.shap_values(X_test)
     
+    # 如果shap_values是列表，取第一个元素（对于二分类问题）
+    if isinstance(shap_values, list):
+        shap_values = shap_values[0]
+    
+    # 确保X_test是DataFrame，如果不是则转换为DataFrame
+    if not isinstance(X_test, pd.DataFrame):
+        X_test = pd.DataFrame(X_test, columns=selected_features)
+    
     plt.figure(figsize=(12, 8))
-    shap.summary_plot(shap_values, X_test, feature_names=selected_features, show=False)
+    shap.summary_plot(shap_values, X_test, show=False)
     plt.title('SHAP值分布图')
     plt.xlabel('SHAP值')
     plt.ylabel('特征')
@@ -66,9 +79,9 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
     save_plot(plt, 'shap_values.png', plot_dir)
     
     plt.figure(figsize=(12, 8))
-    shap.summary_plot(shap_values, X_test, plot_type="bar", feature_names=selected_features, show=False)
+    shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
     plt.title('特征重要性排序')
-    plt.xlabel('|SHAP值|')
+    plt.xlabel('平均|SHAP值|')
     plt.ylabel('特征')
     plt.tight_layout()
     save_plot(plt, 'feature_importance.png', plot_dir)

@@ -28,37 +28,10 @@
 # Ignore virtual environment
 venv/
 env/
-.venv/# Ignore everything by default
-*
-
-# Unignore directories and files we want to track
-!code/
-!code/**
-!input/
-!temp/
-!README.md
-!.gitignore
-
-# Keep the directories
-!*/
-
-# Ignore system files
-.DS_Store
-*.swp
-*.swo
-
-# Ignore Python cache files
-**/__pycache__/
-**/*.py[cod]
-**/*$py.class
-
-# Ignore Jupyter notebook checkpoints
-.ipynb_checkpoints/
-
-# Ignore virtual environment
-venv/
-env/
 .venv/
 
 # Ignore CatBoost info directory
 catboost_info/
+
+# Ignore all files in temp directory
+temp/*

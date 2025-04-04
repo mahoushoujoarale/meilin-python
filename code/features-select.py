@@ -283,8 +283,11 @@ def main():
         logging.error(f"目标列 {target_column} 不存在")
         return
     
-    # 使用特征筛选方法（可选 "rfe", "l1", "mi"）
+    # 使用特征筛选方法（可选 "rfe", "l1", "mi", "lasso", "rf"）
+    # 模型1用rfe效果好些
     selected_features = feature_selection(merged_df, target_column, method="rfe", n_features=7)
+    # 模型2用lasso效果好些
+    # selected_features = feature_selection(merged_df, target_column, method="lasso", n_features=7)
     
     if selected_features:
         # 评估模型性能

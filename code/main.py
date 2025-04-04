@@ -67,6 +67,11 @@ def main():
     # 保存结果到Excel
     save_results_to_excel(results_data)
     
+    # 为每个采样策略绘制ROC和PR曲线
+    for strategy_name in model_scores.keys():
+        plot_roc_curves(model_scores, strategy_name, plot_dir)
+        plot_pr_curves(model_scores, strategy_name, plot_dir)
+    
     # 找出并评估最佳模型
     best_model, y_pred_proba, model_name = find_best_model(
         model_scores, models, sampling_strategies, X_train, y_train, X_test, y_test, device

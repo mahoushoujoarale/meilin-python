@@ -180,7 +180,6 @@ def evaluate_all_models(models, X_train, y_train, X_test, y_test, sampling_strat
             
             scores = evaluate_model(name, model, X_train_res, y_train_res, X_test, y_test, is_neural_net, device)
             strategy_scores[name] = scores
-            model_scores[f"{strategy_name}-{name}"] = scores
             
             # 将评估指标添加到结果列表
             results_data.append({
@@ -196,25 +195,38 @@ def evaluate_all_models(models, X_train, y_train, X_test, y_test, sampling_strat
                 'F1-score': scores['f1'],
                 'Brier Score': scores['brier_score']
             })
+        
+        # 将策略的模型分数添加到主字典
+        model_scores[strategy_name] = strategy_scores
     
     return results_data, model_scores
 
 def find_best_model(model_scores, models, sampling_strategies, X_train, y_train, X_test, y_test, device):
     """找出并评估最佳模型"""
-    best_model_name = max(model_scores.items(), 
-                         key=lambda x: (x[1]['auc'] + x[1]['average_precision'])/2)[0]
+    best_score = -1
+    best_model_name = None
+    best_strategy_name = None
+    
+    # 遍历所有策略和模型，找到最佳组合
+    for strategy_name, strategy_scores in model_scores.items():
+        for model_name, scores in strategy_scores.items():
+            current_score = (scores['auc'] + scores['average_precision']) / 2
+            if current_score > best_score:
+                best_score = current_score
+                best_model_name = model_name
+                best_strategy_name = strategy_name
+    
     print(f"\n{'='*50}")
-    print(f"所有策略中的最佳模型: {best_model_name}")
+    print(f"所有策略中的最佳模型: {best_strategy_name}-{best_model_name}")
     print(f"{'='*50}")
     
     # 获取最佳模型和对应的采样策略
-    strategy_name, model_name = best_model_name.split('-', 1)
-    sampler = sampling_strategies[strategy_name]
+    sampler = sampling_strategies[best_strategy_name]
     X_train_res, y_train_res = sampler.fit_resample(X_train, y_train)
-    best_model = models[model_name]
+    best_model = models[best_model_name]
     
     # 训练最佳模型
-    if "Neural Network" in model_name:
+    if "Neural Network" in best_model_name:
         best_model = best_model.to(device)
         test_dataset = CustomDataset(X_test, y_test)
         test_loader = DataLoader(test_dataset, batch_size=64)
@@ -230,4 +242,4 @@ def find_best_model(model_scores, models, sampling_strategies, X_train, y_train,
         best_model.fit(X_train_res, y_train_res)
         y_pred_proba = best_model.predict_proba(X_test)[:, 1]
     
-    return best_model, y_pred_proba, model_name 
+    return best_model, y_pred_proba, best_model_name 
