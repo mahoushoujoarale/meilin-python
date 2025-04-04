@@ -244,7 +244,7 @@ def feature_selection(df, target_column, method="rfe", n_features=7):
             logging.info(f"  - 均值差: {info['mean_diff']:.2f}")
     
     return selected_features
-
+    
 def evaluate_model(df, target_column, selected_features):
     """
     评估模型性能

@@ -59,32 +59,55 @@ def plot_pr_curves(model_scores, strategy_name, plot_dir):
 
 def plot_shap_values(model, X_test, selected_features, plot_dir):
     """绘制SHAP值图"""
-    explainer = shap.Explainer(model)
-    shap_values = explainer.shap_values(X_test)
+    # 确保X_test是DataFrame，如果不是则转换为DataFrame
+    if not isinstance(X_test, pd.DataFrame):
+        X_test = pd.DataFrame(X_test, columns=selected_features)
+    
+    try:
+        # 首先尝试使用TreeExplainer（适用于树模型）
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X_test)
+    except:
+        try:
+            # 如果TreeExplainer失败，尝试使用KernelExplainer
+            def model_predict(x):
+                if hasattr(model, 'predict_proba'):
+                    return model.predict_proba(x)[:, 1]
+                else:
+                    return model.predict(x)
+            
+            # 使用KernelExplainer需要背景数据，这里使用X_test的均值作为背景
+            background = shap.kmeans(X_test, 10)
+            explainer = shap.KernelExplainer(model_predict, background)
+            shap_values = explainer.shap_values(X_test)
+        except Exception as e:
+            print(f"无法计算SHAP值: {str(e)}")
+            return
     
     # 如果shap_values是列表，取第一个元素（对于二分类问题）
     if isinstance(shap_values, list):
         shap_values = shap_values[0]
     
-    # 确保X_test是DataFrame，如果不是则转换为DataFrame
-    if not isinstance(X_test, pd.DataFrame):
-        X_test = pd.DataFrame(X_test, columns=selected_features)
-    
-    plt.figure(figsize=(12, 8))
-    shap.summary_plot(shap_values, X_test, show=False)
-    plt.title('SHAP值分布图')
-    plt.xlabel('SHAP值')
-    plt.ylabel('特征')
-    plt.tight_layout()
-    save_plot(plt, 'shap_values.png', plot_dir)
-    
-    plt.figure(figsize=(12, 8))
-    shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
-    plt.title('特征重要性排序')
-    plt.xlabel('平均|SHAP值|')
-    plt.ylabel('特征')
-    plt.tight_layout()
-    save_plot(plt, 'feature_importance.png', plot_dir)
+    try:
+        # 绘制SHAP值分布图
+        plt.figure(figsize=(12, 8))
+        shap.summary_plot(shap_values, X_test, show=False)
+        plt.title('SHAP值分布图')
+        plt.xlabel('SHAP值')
+        plt.ylabel('特征')
+        plt.tight_layout()
+        save_plot(plt, 'shap_values.png', plot_dir)
+        
+        # 绘制特征重要性排序图
+        plt.figure(figsize=(12, 8))
+        shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
+        plt.title('特征重要性排序')
+        plt.xlabel('平均|SHAP值|')
+        plt.ylabel('特征')
+        plt.tight_layout()
+        save_plot(plt, 'feature_importance.png', plot_dir)
+    except Exception as e:
+        print(f"绘制SHAP图时出错: {str(e)}")
 
 def plot_calibration_curve(y_test, y_pred_proba, plot_dir):
     """绘制校准曲线"""
