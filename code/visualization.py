@@ -7,6 +7,10 @@ from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from sklearn.calibration import calibration_curve
 from scipy import stats
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
+from catboost import CatBoostClassifier
 
 def create_plot_directory():
     """创建保存图片的文件夹"""
@@ -64,25 +68,21 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
         X_test = pd.DataFrame(X_test, columns=selected_features)
     
     try:
-        # 首先尝试使用TreeExplainer（适用于树模型）
-        explainer = shap.TreeExplainer(model)
+        # 定义模型预测函数
+        def model_predict(x):
+            if hasattr(model, 'predict_proba'):
+                return model.predict_proba(x)[:, 1]
+            else:
+                return model.predict(x)
+        
+        # 使用KernelExplainer需要背景数据，这里使用X_test的均值作为背景
+        background = shap.kmeans(X_test, 10)  # 使用10个聚类中心作为背景数据
+        explainer = shap.KernelExplainer(model_predict, background)
         shap_values = explainer.shap_values(X_test)
-    except:
-        try:
-            # 如果TreeExplainer失败，尝试使用KernelExplainer
-            def model_predict(x):
-                if hasattr(model, 'predict_proba'):
-                    return model.predict_proba(x)[:, 1]
-                else:
-                    return model.predict(x)
-            
-            # 使用KernelExplainer需要背景数据，这里使用X_test的均值作为背景
-            background = shap.kmeans(X_test, 10)
-            explainer = shap.KernelExplainer(model_predict, background)
-            shap_values = explainer.shap_values(X_test)
-        except Exception as e:
-            print(f"无法计算SHAP值: {str(e)}")
-            return
+        
+    except Exception as e:
+        print(f"无法计算SHAP值: {str(e)}")
+        return
     
     # 如果shap_values是列表，取正类（类别1）的值
     if isinstance(shap_values, list):

@@ -42,7 +42,7 @@ def process_model(args):
     
     # 如果是非神经网络模型，绘制SHAP值图
     if "Neural Network" not in model_name:
-        model.fit(X_train, y_train)
+        # 模型已经在evaluate_model中训练过了，直接使用
         plot_shap_values(model, X_test, selected_features, model_plot_dir)
     
     # 绘制校准曲线和决策曲线
