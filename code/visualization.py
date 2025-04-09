@@ -106,6 +106,56 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
         plt.ylabel('特征')
         plt.tight_layout()
         save_plot(plt, 'feature_importance.png', plot_dir)
+        
+        # 绘制每个特征的依赖图
+        print("\n绘制特征依赖图...")
+        for feature in selected_features:
+            plt.figure(figsize=(10, 6))
+            try:
+                X_test_original = pd.DataFrame(X_test, columns=selected_features)
+                feature_values = X_test_original[feature].values
+                # 去除异常值
+                feature_values = np.clip(feature_values, 
+                                       np.percentile(feature_values, 1), 
+                                       np.percentile(feature_values, 99))
+                X_test_original[feature] = feature_values
+                feature_idx = selected_features.index(feature)
+                
+                # 绘制 SHAP 依赖图
+                shap.dependence_plot(feature_idx, shap_values, X_test_original, 
+                                   feature_names=selected_features, show=False)
+                
+                # 添加趋势线
+                x = feature_values
+                y = shap_values[:, feature_idx]
+                
+                # 使用多项式拟合趋势线
+                z = np.polyfit(x, y, 3)  # 3次多项式拟合
+                p = np.poly1d(z)
+                
+                # 生成平滑的趋势线点
+                x_smooth = np.linspace(x.min(), x.max(), 100)
+                y_smooth = p(x_smooth)
+                
+                # 绘制趋势线
+                plt.plot(x_smooth, y_smooth, 'r-', linewidth=2, label='趋势线')
+                
+                # 优化图形显示
+                plt.title(f'{feature}的SHAP依赖图', fontsize=14, pad=20)
+                plt.xlabel(feature, fontsize=12)
+                plt.ylabel('SHAP值', fontsize=12)
+                plt.legend(loc='best')
+                plt.grid(True, alpha=0.3)
+                
+                # 调整布局
+                plt.tight_layout()
+                
+                # 保存图片
+                save_plot(plt, f'shap_dependence_{feature}.png', plot_dir)
+            except Exception as e:
+                print(f"警告：无法绘制 {feature} 的依赖图: {str(e)}")
+                plt.close()
+                
     except Exception as e:
         print(f"绘制SHAP图时出错: {str(e)}")
 
