@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from data_preprocessing import load_data, prepare_features, get_sampling_strategies
+from data_preprocessing import load_data, prepare_features
 from models import get_models
 from model_training import evaluate_all_models, find_best_model
 from visualization import (
@@ -34,22 +34,19 @@ np.random.seed(42)
 
 def process_model(args):
     """处理单个模型的函数，用于并行执行"""
-    model_name, scores, strategy_name, model, X_train, y_train, X_test, y_test, selected_features, device, plot_dir, sampling_strategies = args
+    model_name, scores, model, X_train, y_train, X_test, y_test, selected_features, device, plot_dir = args
     
     # 创建模型特定的子目录
-    model_plot_dir = os.path.join(plot_dir, f"{strategy_name}_{model_name}")
+    model_plot_dir = os.path.join(plot_dir, model_name)
     os.makedirs(model_plot_dir, exist_ok=True)
     
     # 绘制ROC和PR曲线
-    plot_roc_curves({strategy_name: {model_name: scores}}, strategy_name, model_plot_dir)
-    plot_pr_curves({strategy_name: {model_name: scores}}, strategy_name, model_plot_dir)
+    plot_roc_curves({model_name: scores}, model_plot_dir)
+    plot_pr_curves({model_name: scores}, model_plot_dir)
     
     # 如果是非神经网络模型，绘制SHAP值图
     if "Neural Network" not in model_name:
-        # 重新训练模型以获取SHAP值
-        sampler = sampling_strategies[strategy_name]
-        X_train_res, y_train_res = sampler.fit_resample(X_train, y_train)
-        model.fit(X_train_res, y_train_res)
+        model.fit(X_train, y_train)
         plot_shap_values(model, X_test, selected_features, model_plot_dir)
     
     # 绘制校准曲线和决策曲线
@@ -72,7 +69,6 @@ def process_model(args):
     
     # 保存模型评估结果到Excel
     model_results = {
-        '采样策略': strategy_name,
         '模型': model_name,
         'ROC-AUC': scores['auc'],
         'ROC-AUC 95%CI': f"{scores['auc_ci'][0]:.4f}-{scores['auc_ci'][1]:.4f}",
@@ -88,7 +84,7 @@ def process_model(args):
     model_results_file = os.path.join(model_plot_dir, f'model_evaluation_{model_name}.xlsx')
     model_results_df.to_excel(model_results_file, index=False)
     
-    return model_name, strategy_name, bootstrap_metrics
+    return model_name, bootstrap_metrics
 
 def main():
     # 设置设备
@@ -116,37 +112,35 @@ def main():
     df = load_data(input_files, sheet_names)
     X_train, X_test, y_train, y_test, scaler = prepare_features(df, selected_features)
     
-    # 获取采样策略和模型
-    sampling_strategies = get_sampling_strategies()
+    # 获取模型
     models = get_models(X_train.shape[1], y_train)
     
     # 评估所有模型
     results_data, model_scores = evaluate_all_models(
-        models, X_train, y_train, X_test, y_test, sampling_strategies, device
+        models, X_train, y_train, X_test, y_test, device
     )
     
     # 准备并行处理的任务
     tasks = []
     neural_network_tasks = []
     
-    for strategy_name, strategy_scores in model_scores.items():
-        for model_name, scores in strategy_scores.items():
-            task = (
-                model_name, scores, strategy_name, models[model_name],
-                X_train, y_train, X_test, y_test, selected_features, device,
-                plot_dir, sampling_strategies
-            )
-            if "Neural Network" in model_name:
-                neural_network_tasks.append(task)
-            else:
-                tasks.append(task)
+    for model_name, scores in model_scores.items():
+        task = (
+            model_name, scores, models[model_name],
+            X_train, y_train, X_test, y_test, selected_features, device,
+            plot_dir
+        )
+        if "Neural Network" in model_name:
+            neural_network_tasks.append(task)
+        else:
+            tasks.append(task)
     
     # 首先处理神经网络模型（单进程）
     print("\n处理神经网络模型...")
     for task in neural_network_tasks:
-        model_name, strategy_name, bootstrap_metrics = process_model(task)
+        model_name, bootstrap_metrics = process_model(task)
         print(f"\n{'-'*30}")
-        print(f"完成 {strategy_name} 采样策略下的 {model_name} 模型评估")
+        print(f"完成 {model_name} 模型评估")
         print(f"{'-'*30}")
         print_bootstrap_results(bootstrap_metrics)
     
@@ -156,15 +150,15 @@ def main():
         futures = {executor.submit(process_model, task): task for task in tasks}
         
         for future in as_completed(futures):
-            model_name, strategy_name, bootstrap_metrics = future.result()
+            model_name, bootstrap_metrics = future.result()
             print(f"\n{'-'*30}")
-            print(f"完成 {strategy_name} 采样策略下的 {model_name} 模型评估")
+            print(f"完成 {model_name} 模型评估")
             print(f"{'-'*30}")
             print_bootstrap_results(bootstrap_metrics)
     
     # 找出并评估最佳模型
     best_model, y_pred_proba, model_name = find_best_model(
-        model_scores, models, sampling_strategies, X_train, y_train, X_test, y_test, device
+        model_scores, models, X_train, y_train, X_test, y_test, device
     )
     
     print(f"\n所有图片和结果已保存到文件夹: {plot_dir}")

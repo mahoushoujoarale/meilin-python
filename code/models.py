@@ -5,7 +5,6 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from xgboost import XGBClassifier
 from catboost import CatBoostClassifier
 from lightgbm import LGBMClassifier
-from imblearn.ensemble import BalancedRandomForestClassifier, RUSBoostClassifier
 
 class NeuralNetwork(nn.Module):
     def __init__(self, input_size):
@@ -105,10 +104,6 @@ def get_models(input_size, y_train):
         "XGBoost": XGBClassifier(eval_metric='logloss', scale_pos_weight=sum(y_train == 0) / sum(y_train == 1)),
         "CatBoost": CatBoostClassifier(silent=True, class_weights=[1, sum(y_train == 0) / sum(y_train == 1)]),
         "LightGBM": LGBMClassifier(verbose=-1, class_weight='balanced'),
-        
-        # 专门的不平衡数据模型
-        "Balanced Random Forest": BalancedRandomForestClassifier(random_state=42),
-        "RUSBoost": RUSBoostClassifier(random_state=42),
         
         # 神经网络模型
         "Neural Network": NeuralNetwork(input_size=input_size),

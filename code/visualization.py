@@ -22,12 +22,12 @@ def save_plot(plt, filename, plot_dir):
     plt.savefig(os.path.join(plot_dir, filename), dpi=300, bbox_inches='tight')
     plt.close()
 
-def plot_roc_curves(model_scores, strategy_name, plot_dir):
+def plot_roc_curves(model_scores, plot_dir):
     """绘制ROC曲线"""
     plt.figure(figsize=(12, 8))
-    plt.title(f'ROC Curves for {strategy_name} Sampling Strategy')
+    plt.title('ROC Curves')
     
-    for name, scores in model_scores[strategy_name].items():
+    for name, scores in model_scores.items():
         if 'roc_data' in scores:
             fpr, tpr = scores['roc_data']
             auc = scores['auc']
@@ -38,14 +38,14 @@ def plot_roc_curves(model_scores, strategy_name, plot_dir):
     plt.ylabel('True Positive Rate')
     plt.legend(loc='best')
     plt.grid(True)
-    save_plot(plt, f'roc_curve_{strategy_name}.png', plot_dir)
+    save_plot(plt, 'roc_curve.png', plot_dir)
 
-def plot_pr_curves(model_scores, strategy_name, plot_dir):
+def plot_pr_curves(model_scores, plot_dir):
     """绘制PR曲线"""
     plt.figure(figsize=(12, 8))
-    plt.title(f'Precision-Recall Curves for {strategy_name} Sampling Strategy')
+    plt.title('Precision-Recall Curves')
     
-    for name, scores in model_scores[strategy_name].items():
+    for name, scores in model_scores.items():
         if 'pr_data' in scores:
             precision, recall = scores['pr_data']
             ap = scores['average_precision']
@@ -55,7 +55,7 @@ def plot_pr_curves(model_scores, strategy_name, plot_dir):
     plt.ylabel('Precision')
     plt.legend(loc='best')
     plt.grid(True)
-    save_plot(plt, f'pr_curve_{strategy_name}.png', plot_dir)
+    save_plot(plt, 'pr_curve.png', plot_dir)
 
 def plot_shap_values(model, X_test, selected_features, plot_dir):
     """绘制SHAP值图"""

@@ -152,121 +152,97 @@ def evaluate_model(name, model, X_train, y_train, X_test, y_test, is_neural_net=
     
     return metrics_dict 
 
-def evaluate_all_models(models, X_train, y_train, X_test, y_test, sampling_strategies, device):
+def evaluate_all_models(models, X_train, y_train, X_test, y_test, device):
     """评估所有模型"""
     results_data = []
     model_scores = {}
     
-    for strategy_name, sampler in sampling_strategies.items():
-        print(f"\n{'='*50}")
-        print(f"使用 {strategy_name} 采样策略:")
-        print(f"{'='*50}")
+    # 训练和评估每个模型
+    for name, model in models.items():
+        is_neural_net = "Neural Network" in name
+        print(f"\n{'-'*30}")
+        print(f"训练模型: {name}")
+        print(f"{'-'*30}")
         
-        # 应用采样策略
-        X_train_res, y_train_res = sampler.fit_resample(X_train, y_train)
+        scores = evaluate_model(name, model, X_train, y_train, X_test, y_test, is_neural_net, device)
+        model_scores[name] = scores
         
-        # 打印采样后的数据分布
-        print(f"\n采样后的数据分布:")
-        print(f"正样本数量: {sum(y_train_res == 1)}")
-        print(f"负样本数量: {sum(y_train_res == 0)}")
-        print(f"正样本比例: {sum(y_train_res == 1) / len(y_train_res):.2%}")
-        
-        # 训练和评估每个模型
-        strategy_scores = {}
-        for name, model in models.items():
-            is_neural_net = "Neural Network" in name
-            print(f"\n{'-'*30}")
-            print(f"训练模型: {name}")
-            print(f"{'-'*30}")
-            
-            scores = evaluate_model(name, model, X_train_res, y_train_res, X_test, y_test, is_neural_net, device)
-            strategy_scores[name] = scores
-            
-            # 将评估指标添加到结果列表
-            results_data.append({
-                '采样策略': strategy_name,
-                '模型': name,
-                'ROC-AUC': scores['auc'],
-                'ROC-AUC 95%CI': f"{scores['auc_ci'][0]:.4f}-{scores['auc_ci'][1]:.4f}",
-                'PR-AUC': scores['average_precision'],
-                'Accuracy': scores['accuracy'],
-                'Sensitivity': scores['recall'],
-                'Specificity': scores['specificity'],
-                'Precision': scores['precision'],
-                'F1-score': scores['f1'],
-                'Brier Score': scores['brier_score']
-            })
-        
-        # 将策略的模型分数添加到主字典
-        model_scores[strategy_name] = strategy_scores
+        # 将评估指标添加到结果列表
+        results_data.append({
+            '模型': name,
+            'ROC-AUC': scores['auc'],
+            'ROC-AUC 95%CI': f"{scores['auc_ci'][0]:.4f}-{scores['auc_ci'][1]:.4f}",
+            'PR-AUC': scores['average_precision'],
+            'Accuracy': scores['accuracy'],
+            'Sensitivity': scores['recall'],
+            'Specificity': scores['specificity'],
+            'Precision': scores['precision'],
+            'F1-score': scores['f1'],
+            'Brier Score': scores['brier_score']
+        })
     
     return results_data, model_scores
 
-def find_best_model(model_scores, models, sampling_strategies, X_train, y_train, X_test, y_test, device):
+def find_best_model(model_scores, models, X_train, y_train, X_test, y_test, device):
     """找出并评估最佳模型"""
     best_score = -1
     best_model_name = None
-    best_strategy_name = None
     
     # 确保y_test是numpy数组
     if isinstance(y_test, pd.Series):
         y_test = y_test.values
     
-    # 遍历所有策略和模型，找到最佳组合
-    for strategy_name, strategy_scores in model_scores.items():
-        for model_name, scores in strategy_scores.items():
-            # 计算综合评分
-            # 1. 区分度指标 (Discrimination)
-            discrimination_score = scores['auc'] * 0.4  # AUC权重40%
+    # 遍历所有模型，找到最佳模型
+    for model_name, scores in model_scores.items():
+        # 计算综合评分
+        # 1. 区分度指标 (Discrimination)
+        discrimination_score = scores['auc'] * 0.4  # AUC权重40%
+        
+        # 2. 校准度指标 (Calibration)
+        calibration_score = (1 - scores['brier_score']) * 0.2  # Brier分数权重20%
+        
+        # 3. 临床实用性指标 (Clinical Utility)
+        # 使用决策曲线分析中的净收益
+        thresholds = np.linspace(0, 0.99, 100)
+        net_benefits = []
+        y_pred_proba = scores['y_pred_proba']
+        if isinstance(y_pred_proba, pd.Series):
+            y_pred_proba = y_pred_proba.values
             
-            # 2. 校准度指标 (Calibration)
-            calibration_score = (1 - scores['brier_score']) * 0.2  # Brier分数权重20%
-            
-            # 3. 临床实用性指标 (Clinical Utility)
-            # 使用决策曲线分析中的净收益
-            thresholds = np.linspace(0, 0.99, 100)
-            net_benefits = []
-            y_pred_proba = scores['y_pred_proba']
-            if isinstance(y_pred_proba, pd.Series):
-                y_pred_proba = y_pred_proba.values
-                
-            for threshold in thresholds:
-                y_pred = (y_pred_proba >= threshold).astype(int)
-                tp = np.sum((y_pred == 1) & (y_test == 1))
-                fp = np.sum((y_pred == 1) & (y_test == 0))
-                n = len(y_test)
-                if threshold == 0:
-                    net_benefits.append(0)
-                else:
-                    net_benefits.append((tp - (threshold/(1-threshold))*fp) / n)
-            clinical_utility_score = np.max(net_benefits) * 0.2  # 最大净收益权重20%
-            
-            # 4. 稳定性指标 (Stability)
-            # 使用AUC的95%置信区间宽度作为稳定性指标
-            auc_ci_width = scores['auc_ci'][1] - scores['auc_ci'][0]
-            stability_score = (1 - auc_ci_width) * 0.2  # 置信区间宽度权重20%
-            
-            # 计算总分
-            current_score = (
-                discrimination_score + 
-                calibration_score + 
-                clinical_utility_score + 
-                stability_score
-            )
-            
-            if current_score > best_score:
-                best_score = current_score
-                best_model_name = model_name
-                best_strategy_name = strategy_name
+        for threshold in thresholds:
+            y_pred = (y_pred_proba >= threshold).astype(int)
+            tp = np.sum((y_pred == 1) & (y_test == 1))
+            fp = np.sum((y_pred == 1) & (y_test == 0))
+            n = len(y_test)
+            if threshold == 0:
+                net_benefits.append(0)
+            else:
+                net_benefits.append((tp - (threshold/(1-threshold))*fp) / n)
+        clinical_utility_score = np.max(net_benefits) * 0.2  # 最大净收益权重20%
+        
+        # 4. 稳定性指标 (Stability)
+        # 使用AUC的95%置信区间宽度作为稳定性指标
+        auc_ci_width = scores['auc_ci'][1] - scores['auc_ci'][0]
+        stability_score = (1 - auc_ci_width) * 0.2
+        
+        # 计算总分
+        current_score = (
+            discrimination_score + 
+            calibration_score + 
+            clinical_utility_score + 
+            stability_score
+        )
+        
+        if current_score > best_score:
+            best_score = current_score
+            best_model_name = model_name
     
     print(f"\n{'='*50}")
-    print(f"所有策略中的最佳模型: {best_strategy_name}-{best_model_name}")
+    print(f"最佳模型: {best_model_name}")
     print(f"综合评分: {best_score:.4f}")
     print(f"{'='*50}")
     
-    # 获取最佳模型和对应的采样策略
-    sampler = sampling_strategies[best_strategy_name]
-    X_train_res, y_train_res = sampler.fit_resample(X_train, y_train)
+    # 获取最佳模型
     best_model = models[best_model_name]
     
     # 训练最佳模型
@@ -283,7 +259,7 @@ def find_best_model(model_scores, models, sampling_strategies, X_train, y_train,
                 y_pred_proba.extend(outputs.cpu().numpy())
             y_pred_proba = np.array(y_pred_proba).squeeze()
     else:
-        best_model.fit(X_train_res, y_train_res)
+        best_model.fit(X_train, y_train)
         y_pred_proba = best_model.predict_proba(X_test)[:, 1]
     
     return best_model, y_pred_proba, best_model_name 

@@ -2,8 +2,6 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from imblearn.over_sampling import SMOTE, ADASYN
-from imblearn.combine import SMOTETomek
 
 def load_data(input_files, sheet_names):
     """加载数据集"""
@@ -31,16 +29,4 @@ def prepare_features(df, selected_features):
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
     
-    return X_train, X_test, y_train, y_test, scaler
-
-def get_sampling_strategies():
-    """获取采样策略"""
-    return {
-        "SMOTE": SMOTE(random_state=42),
-        "ADASYN": ADASYN(random_state=42),
-        "SMOTE_Tomek": SMOTETomek(random_state=42)
-    }
-
-def apply_sampling(X_train, y_train, sampler):
-    """应用采样策略"""
-    return sampler.fit_resample(X_train, y_train) 
+    return X_train, X_test, y_train, y_test, scaler 
