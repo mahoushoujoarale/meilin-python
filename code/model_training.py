@@ -117,7 +117,8 @@ def evaluate_model(name, model, X_train, y_train, X_test, y_test, is_neural_net=
         'precision': precision_score(y_test, y_pred),
         'recall': recall_score(y_test, y_pred),
         'f1': f1_score(y_test, y_pred),
-        'auc': roc_auc_score(y_test, y_pred_proba)
+        'auc': roc_auc_score(y_test, y_pred_proba),
+        'y_pred_proba': y_pred_proba
     }
     
     tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
@@ -207,10 +208,52 @@ def find_best_model(model_scores, models, sampling_strategies, X_train, y_train,
     best_model_name = None
     best_strategy_name = None
     
+    # 确保y_test是numpy数组
+    if isinstance(y_test, pd.Series):
+        y_test = y_test.values
+    
     # 遍历所有策略和模型，找到最佳组合
     for strategy_name, strategy_scores in model_scores.items():
         for model_name, scores in strategy_scores.items():
-            current_score = (scores['auc'] + scores['average_precision']) / 2
+            # 计算综合评分
+            # 1. 区分度指标 (Discrimination)
+            discrimination_score = scores['auc'] * 0.4  # AUC权重40%
+            
+            # 2. 校准度指标 (Calibration)
+            calibration_score = (1 - scores['brier_score']) * 0.2  # Brier分数权重20%
+            
+            # 3. 临床实用性指标 (Clinical Utility)
+            # 使用决策曲线分析中的净收益
+            thresholds = np.linspace(0, 0.99, 100)
+            net_benefits = []
+            y_pred_proba = scores['y_pred_proba']
+            if isinstance(y_pred_proba, pd.Series):
+                y_pred_proba = y_pred_proba.values
+                
+            for threshold in thresholds:
+                y_pred = (y_pred_proba >= threshold).astype(int)
+                tp = np.sum((y_pred == 1) & (y_test == 1))
+                fp = np.sum((y_pred == 1) & (y_test == 0))
+                n = len(y_test)
+                if threshold == 0:
+                    net_benefits.append(0)
+                else:
+                    net_benefits.append((tp - (threshold/(1-threshold))*fp) / n)
+            clinical_utility_score = np.max(net_benefits) * 0.2  # 最大净收益权重20%
+            
+            # 4. 稳定性指标 (Stability)
+            # 使用AUC的95%置信区间宽度作为稳定性指标
+            auc_ci_width = scores['auc_ci'][1] - scores['auc_ci'][0]
+            stability_score = (1 - auc_ci_width) * 0.2  # 置信区间宽度权重20%
+            
+            # 计算总分
+            current_score = (
+                discrimination_score + 
+                calibration_score + 
+                clinical_utility_score + 
+                stability_score
+            )
+            
             if current_score > best_score:
                 best_score = current_score
                 best_model_name = model_name
@@ -218,6 +261,7 @@ def find_best_model(model_scores, models, sampling_strategies, X_train, y_train,
     
     print(f"\n{'='*50}")
     print(f"所有策略中的最佳模型: {best_strategy_name}-{best_model_name}")
+    print(f"综合评分: {best_score:.4f}")
     print(f"{'='*50}")
     
     # 获取最佳模型和对应的采样策略

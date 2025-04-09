@@ -84,15 +84,15 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
             print(f"无法计算SHAP值: {str(e)}")
             return
     
-    # 如果shap_values是列表，取第一个元素（对于二分类问题）
+    # 如果shap_values是列表，取正类（类别1）的值
     if isinstance(shap_values, list):
-        shap_values = shap_values[0]
+        shap_values = shap_values[1]  # 取正类的SHAP值
     
     try:
         # 绘制SHAP值分布图
         plt.figure(figsize=(12, 8))
         shap.summary_plot(shap_values, X_test, show=False)
-        plt.title('SHAP值分布图')
+        plt.title('SHAP值分布图 (正类)')
         plt.xlabel('SHAP值')
         plt.ylabel('特征')
         plt.tight_layout()
@@ -101,7 +101,7 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
         # 绘制特征重要性排序图
         plt.figure(figsize=(12, 8))
         shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
-        plt.title('特征重要性排序')
+        plt.title('特征重要性排序 (正类)')
         plt.xlabel('平均|SHAP值|')
         plt.ylabel('特征')
         plt.tight_layout()
@@ -112,18 +112,31 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
         for feature in selected_features:
             plt.figure(figsize=(10, 6))
             try:
-                X_test_original = pd.DataFrame(X_test, columns=selected_features)
-                feature_values = X_test_original[feature].values
-                # 去除异常值
+                # 确保X_test是DataFrame
+                X_test_df = pd.DataFrame(X_test, columns=selected_features)
+                
+                # 获取特征值并处理异常值
+                feature_values = X_test_df[feature].values
                 feature_values = np.clip(feature_values, 
                                        np.percentile(feature_values, 1), 
                                        np.percentile(feature_values, 99))
-                X_test_original[feature] = feature_values
+                
+                # 获取特征索引
                 feature_idx = selected_features.index(feature)
                 
-                # 绘制 SHAP 依赖图
-                shap.dependence_plot(feature_idx, shap_values, X_test_original, 
-                                   feature_names=selected_features, show=False)
+                # 确保shap_values是二维数组
+                if len(shap_values.shape) == 1:
+                    shap_values = shap_values.reshape(-1, 1)
+                
+                # 绘制SHAP依赖图
+                shap.dependence_plot(
+                    feature_idx,
+                    shap_values,
+                    X_test_df,
+                    feature_names=selected_features,
+                    show=False,
+                    interaction_index=None  # 不显示交互特征
+                )
                 
                 # 添加趋势线
                 x = feature_values
@@ -141,7 +154,7 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
                 plt.plot(x_smooth, y_smooth, 'r-', linewidth=2, label='趋势线')
                 
                 # 优化图形显示
-                plt.title(f'{feature}的SHAP依赖图', fontsize=14, pad=20)
+                plt.title(f'{feature}的SHAP依赖图 (正类)', fontsize=14, pad=20)
                 plt.xlabel(feature, fontsize=12)
                 plt.ylabel('SHAP值', fontsize=12)
                 plt.legend(loc='best')
@@ -175,6 +188,16 @@ def plot_calibration_curve(y_test, y_pred_proba, plot_dir):
 
 def plot_decision_curve(y_test, y_pred_proba, plot_dir):
     """绘制决策曲线"""
+    # 确保输入是numpy数组
+    if isinstance(y_test, pd.Series):
+        y_test = y_test.values
+    if isinstance(y_pred_proba, pd.Series):
+        y_pred_proba = y_pred_proba.values
+    
+    # 确保y_pred_proba是一维数组
+    if len(y_pred_proba.shape) > 1:
+        y_pred_proba = y_pred_proba.squeeze()
+    
     thresholds = np.linspace(0, 0.99, 100)
     net_benefit = []
     

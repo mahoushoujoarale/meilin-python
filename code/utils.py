@@ -25,7 +25,7 @@ def ensure_results_dir():
     os.makedirs(results_dir, exist_ok=True)
     return results_dir
 
-def generate_baseline_table(df, selected_features):
+def generate_baseline_table(df, selected_features, output_file=None):
     """生成基线特征表格"""
     results_data = []
     
@@ -48,22 +48,30 @@ def generate_baseline_table(df, selected_features):
         })
     
     baseline_df = pd.DataFrame(results_data)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_dir = ensure_results_dir()
-    baseline_file = os.path.join(results_dir, f'baseline_characteristics_{timestamp}.xlsx')
-    baseline_df.to_excel(baseline_file, index=False)
-    print(f"\nBaseline characteristics have been saved to: {baseline_file}")
+    
+    if output_file is None:
+        # 使用默认路径
+        results_dir = ensure_results_dir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = os.path.join(results_dir, f'baseline_characteristics_{timestamp}.xlsx')
+    
+    baseline_df.to_excel(output_file, index=False)
+    print(f"\n基线特征表格已保存到: {output_file}")
     
     return baseline_df
 
-def save_results_to_excel(results_data, filename_prefix='model_evaluation_results'):
+def save_results_to_excel(results_data, output_file=None, sheet_name='评估结果'):
     """保存结果到Excel文件"""
     results_df = pd.DataFrame(results_data)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_dir = ensure_results_dir()
-    excel_file = os.path.join(results_dir, f'{filename_prefix}_{timestamp}.xlsx')
-    results_df.to_excel(excel_file, sheet_name='评估结果', index=False)
-    print(f"\nResults have been saved to: {excel_file}")
+    
+    if output_file is None:
+        # 使用默认路径
+        results_dir = ensure_results_dir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = os.path.join(results_dir, f'model_evaluation_results_{timestamp}.xlsx')
+    
+    results_df.to_excel(output_file, sheet_name=sheet_name, index=False)
+    print(f"\n评估结果已保存到: {output_file}")
 
 def perform_bootstrap_validation(model, X_test, y_test, n_bootstrap=1000, is_neural_net=False, device=None):
     """执行Bootstrap验证"""
@@ -82,9 +90,10 @@ def perform_bootstrap_validation(model, X_test, y_test, n_bootstrap=1000, is_neu
         y_bootstrap = y_test.iloc[indices] if isinstance(y_test, pd.Series) else y_test[indices]
         
         if is_neural_net:
+            # 处理PyTorch模型
             bootstrap_dataset = CustomDataset(X_bootstrap, y_bootstrap)
             bootstrap_loader = DataLoader(bootstrap_dataset, batch_size=64)
-            model.eval()
+            model.eval()  # 设置模型为评估模式
             with torch.no_grad():
                 y_pred_proba = []
                 for X, _ in bootstrap_loader:
@@ -93,6 +102,7 @@ def perform_bootstrap_validation(model, X_test, y_test, n_bootstrap=1000, is_neu
                     y_pred_proba.extend(outputs.cpu().numpy())
                 y_pred_proba = np.array(y_pred_proba).squeeze()
         else:
+            # 处理非PyTorch模型
             y_pred_proba = model.predict_proba(X_bootstrap)[:, 1]
         
         y_pred = (y_pred_proba > 0.5).astype(int)
@@ -109,13 +119,19 @@ def perform_bootstrap_validation(model, X_test, y_test, n_bootstrap=1000, is_neu
 def print_bootstrap_results(bootstrap_metrics):
     """打印Bootstrap验证结果"""
     print("\n外部验证结果 (95%置信区间):")
+    print("-" * 50)
+    print(f"{'指标':<15} {'平均值':<10} {'95%置信区间':<20}")
+    print("-" * 50)
+    
     for metric, values in bootstrap_metrics.items():
         mean_value = np.mean(values)
         ci_low = np.percentile(values, 2.5)
         ci_high = np.percentile(values, 97.5)
-        print(f"{metric}: {mean_value:.4f} [{ci_low:.4f}-{ci_high:.4f}]")
+        print(f"{metric:<15} {mean_value:.4f}     [{ci_low:.4f}-{ci_high:.4f}]")
+    
+    print("-" * 50)
 
-def save_external_validation_results(bootstrap_metrics):
+def save_external_validation_results(bootstrap_metrics, output_file=None):
     """保存外部验证结果到Excel文件"""
     external_validation_results = {
         'Metric': list(bootstrap_metrics.keys()),
@@ -125,9 +141,11 @@ def save_external_validation_results(bootstrap_metrics):
     }
     external_validation_df = pd.DataFrame(external_validation_results)
     
-    # 使用ensure_results_dir确保results目录存在
-    results_dir = ensure_results_dir()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    excel_file = os.path.join(results_dir, f'external_validation_results_{timestamp}.xlsx')
-    external_validation_df.to_excel(excel_file, index=False)
-    print(f"\n外部验证结果已保存到: {excel_file}") 
+    if output_file is None:
+        # 使用默认路径
+        results_dir = ensure_results_dir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = os.path.join(results_dir, f'external_validation_results_{timestamp}.xlsx')
+    
+    external_validation_df.to_excel(output_file, index=False)
+    print(f"\n外部验证结果已保存到: {output_file}") 
