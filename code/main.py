@@ -40,10 +40,6 @@ def process_model(args):
     model_plot_dir = os.path.join(plot_dir, model_name)
     os.makedirs(model_plot_dir, exist_ok=True)
     
-    # 绘制ROC和PR曲线
-    plot_roc_curves({model_name: scores}, model_plot_dir)
-    plot_pr_curves({model_name: scores}, model_plot_dir)
-    
     # 如果是非神经网络模型，绘制SHAP值图
     if "Neural Network" not in model_name:
         model.fit(X_train, y_train)
@@ -84,7 +80,7 @@ def process_model(args):
     model_results_file = os.path.join(model_plot_dir, f'model_evaluation_{model_name}.xlsx')
     model_results_df.to_excel(model_results_file, index=False)
     
-    return model_name, bootstrap_metrics
+    return model_name, bootstrap_metrics, scores
 
 def main():
     # 设置设备
@@ -137,8 +133,10 @@ def main():
     
     # 首先处理神经网络模型（单进程）
     print("\n处理神经网络模型...")
+    all_scores = {}
     for task in neural_network_tasks:
-        model_name, bootstrap_metrics = process_model(task)
+        model_name, bootstrap_metrics, scores = process_model(task)
+        all_scores[model_name] = scores
         print(f"\n{'-'*30}")
         print(f"完成 {model_name} 模型评估")
         print(f"{'-'*30}")
@@ -150,11 +148,16 @@ def main():
         futures = {executor.submit(process_model, task): task for task in tasks}
         
         for future in as_completed(futures):
-            model_name, bootstrap_metrics = future.result()
+            model_name, bootstrap_metrics, scores = future.result()
+            all_scores[model_name] = scores
             print(f"\n{'-'*30}")
             print(f"完成 {model_name} 模型评估")
             print(f"{'-'*30}")
             print_bootstrap_results(bootstrap_metrics)
+    
+    # 绘制所有模型的ROC和PR曲线
+    plot_roc_curves(all_scores, plot_dir)
+    plot_pr_curves(all_scores, plot_dir)
     
     # 找出并评估最佳模型
     best_model, y_pred_proba, model_name = find_best_model(
