@@ -128,15 +128,25 @@ def plot_shap_values(model, X_test, selected_features, plot_dir):
                 if len(shap_values.shape) == 1:
                     shap_values = shap_values.reshape(-1, 1)
                 
+                # 确保维度匹配
+                if len(feature_values) != len(shap_values):
+                    print(f"警告：{feature} 的特征值和SHAP值维度不匹配，跳过该特征")
+                    plt.close()
+                    continue
+                
                 # 绘制SHAP依赖图
-                shap.dependence_plot(
-                    feature_idx,
-                    shap_values,
-                    X_test_df,
-                    feature_names=selected_features,
-                    show=False,
-                    interaction_index=None  # 不显示交互特征
+                scatter = plt.scatter(
+                    feature_values,
+                    shap_values[:, feature_idx],
+                    c=feature_values,
+                    cmap='viridis',  # 使用更鲜艳的viridis配色方案
+                    s=16,
+                    alpha=1.0  # 设置完全不透明
                 )
+                
+                # 添加颜色条
+                cbar = plt.colorbar(scatter)
+                cbar.set_label('特征值')
                 
                 # 添加趋势线
                 x = feature_values

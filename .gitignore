@@ -13,9 +13,9 @@
 !*/
 
 # Ignore system files
-.DS_Store
-*.swp
-*.swo
+**/.DS_Store
+**/*.swp
+**/*.swo
 
 # Ignore Python cache files
 **/__pycache__/
